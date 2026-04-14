@@ -5,192 +5,136 @@ React 18/19+, TypeScript strict, optional React Compiler.
 
 ---
 
-## Rule Levels
+## CORE Rules
 
-### CORE (mandatory)
 - functional components only
-- strict typing (no any)
-- one responsibility per unit
-- side-effects must not happen during render
-- no direct cross-layer violations (see architecture doc)
-
-### RECOMMENDED
-- keep JSX declarative and simple
-- separate UI / model / api / lib concerns
-- prefer composition over inheritance
-- avoid prop drilling
-
-### OPTIONAL
-- component LOC targets
-- memoization style preferences
+- no `any`
+- keep render pure; no side-effects during render
+- avoid putting business logic directly in components unless trivial
+- prefer `model`/hooks for reusable logic
+- no architecture boundary violations (see `REACT-ARCHITECTURE.md`)
 
 ---
 
-## AI Generation Workflow
+## Component Boundaries
 
-AI generation steps:
-1. Define feature boundary
-2. Split into `ui` / `model` / `api` / `lib`
-3. Write types first
-4. Implement model logic
-5. Implement UI
-6. Connect via hooks
-7. Run lint/typecheck and fix CORE violations
+- component must not contain unrelated UI + business logic
+- split when one unit mixes orchestration, domain logic, and rendering details
+- prefer thin UI components and explicit props/events contracts
 
 ---
 
-## Components
-
-- target small-to-medium components; split when readability drops
-- as a heuristic, 200 LOC is a signal to review, not a hard blocker
-- readability degradation is the primary split signal, not LOC
-- splitting must not increase cognitive load
-- component responsibility should be explainable in one sentence
-- if a unit has 2+ independent reasons to change, split it
-- keep render pure and predictable
-- move complex or repeated business logic out of JSX
-- small inline conditions in JSX are acceptable
-
-```tsx
-type Props = { title: string };
-
-export const Card = ({ title }: Props) => {
-  return <div>{title}</div>;
-};
-```
-
----
-
-## Composition
-
-- use children for simple composition
-- use compound components for complex UI
-- avoid excessive prop drilling (3+ levels)
-- prefer composition first, then context
-
----
-
-## Hooks
+## Hooks And Effects
 
 - one hook = one responsibility
-- hook responsibility should be explainable in one sentence
-- hooks should not own UI
-- hooks may return render fragments only for headless patterns (rare, documented)
-- no conditional calls
-- keep side-effects in event handlers or effects depending on lifecycle
-- avoid heavy business logic in effects
-- do not derive state in effects when it can be computed in render
+- no conditional hooks
+- effects only for side-effects; no derived state in effects
+- side-effects must be explicit and lifecycle-controlled
+- cleanup subscriptions/timers/requests
 
 ---
 
 ## State
 
-- local first
-- avoid duplicated state unless there is a clear reason
-- prefer derived values from source state
+- local state first
+- avoid duplicated state
+- keep server cache in query/data libs, not in global client stores
+- promote to app store only for truly cross-feature state
 
 ---
 
-## State Management Decision Rules
+## Data And Async
 
-- keep transient UI state local to component by default
-- place feature-shared client state in `features/*/model`
-- promote to app-level store only for truly cross-feature state
-- keep server cache in query/data libraries, not in global client stores
-
----
-
-## Data Fetching
-
-### Client Components
-- do not call `fetch` directly in component body
-- use api layer + query hooks (React Query/SWR/custom hooks)
-- handle loading / error / empty states
-
-### Server Components
-- direct async data access is allowed
-- fetch / DB access in component body is allowed
+- use `api` + query hooks; avoid direct `fetch` in component render/body
+- normalize data at boundaries before UI
+- prevent race conditions; only latest async result may update state
+- event handlers must be explicit about async behavior and state updates
 
 ---
 
-## Events And Memoization
+## Data Fetching Strategy (CORE)
 
-### With React Compiler
-- inline handlers are acceptable
-- manual memoization is allowed only when profiling shows value
+- use one data layer consistently (`TanStack Query` or `SWR`)
+- no manual caching in components
+- no duplication of server state in client stores
+- colocate queries with `feature/api`
+- mutations must invalidate or update cache explicitly
+- map server errors to typed UI state
 
-### Without Compiler
-- use memoization when it prevents measured re-render cost
-- avoid blanket `useMemo`/`useCallback` usage
+---
 
-Rules:
-- handlers must stay small
-- no premature optimization
+## Data Mapping
+
+- do not use raw API response directly in UI
+- map DTO -> domain model in `api` layer/adapters
+- UI must depend on stable domain shape
 
 ---
 
 ## Forms
 
-- controlled inputs by default
-- uncontrolled inputs are allowed with form libraries (for example react-hook-form)
-- validation outside presentational UI
-- schema validation (zod/yup) for non-trivial forms
+- use one form approach consistently (`React Hook Form` or `Formik`)
+- colocate validation schemas (`zod`/`yup`)
+- no uncontrolled side-effects in form handlers
+- form state must not leak into global stores
 
 ---
 
-## Performance
+## Side Effects
 
-- measure first
-- avoid unnecessary re-renders
-- split components when complexity rises
-- colocate state near usage
+- side-effects only in event handlers, effects, or async actions in model layer
+- never in render
+- never in pure helpers
 
 ---
 
-## Async State Consistency
+## Server Components Constraints (if used)
 
-- prevent race conditions in async flows
-- cancel stale requests (for example via `AbortController`)
-- ensure only latest request updates interactive state
+- no client-only libraries in Server Components
+- no stateful client hooks in Server Components
+- data must be serialized safely across boundaries
+- avoid passing large objects through props
+- prefer streaming/partial rendering when useful
+- server-side errors must be handled by boundaries/route-level error handling
+
+---
+
+## Memoization
+
+- with React Compiler: avoid manual memoization unless profiling proves value
+- without Compiler: use `useMemo`/`useCallback` only for measured bottlenecks
+- no blanket memoization
 
 ---
 
 ## Error Handling
 
-- use error boundaries around unstable UI regions
-- keep fallback UI simple and recoverable
-- keep expected errors in state, unexpected errors in boundaries
+- do not swallow errors
+- expected errors → typed state
+- unexpected errors -> error boundaries/logs
 
 ---
 
-## Testability
+## Performance
 
-- business logic should be testable outside React runtime
-- `model` and `lib` are primary unit-testing targets
-- components should mostly be integration/render targets
-
----
-
-## Allowed Exceptions
-
-- small inline conditions in JSX
-- local state duplication when explicitly justified
-- memoization in performance-critical paths with evidence
+- avoid unnecessary re-renders (stable props, stable keys)
+- use virtualization for large lists
+- avoid heavy computations in render
+- measure before optimizing
 
 ---
 
-## Anti-patterns
+## Naming
 
-- heavy business workflows embedded in JSX
-- duplicated state without reason
-- large components with mixed responsibilities
-- uncontrolled side-effects
+- boolean props: `is*` / `has*` / `can*`
+- event handlers: `on*`
+- async function naming must be consistent project-wide (`verb` or `verbAsync`)
 
 ---
 
 ## IMPORTANT
 
-Follow architecture rules from:
+Use together with:
 
 - REACT-ARCHITECTURE.md
 - REACT-LINTING.md
